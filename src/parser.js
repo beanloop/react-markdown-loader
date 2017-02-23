@@ -8,23 +8,27 @@ const
   md = new Remarkable();
 
 /**
- * Wraps the code and jsx in an html component
- * for styling it later
- * @param   {string} exampleRun Code to be run in the styleguide
- * @param   {string} exampleSrc Source that will be shown as example
- * @param   {string} langClass  CSS class for the code block
- * @returns {string}            Code block with souce and run code
+ * Parse a code block to have a source and a run code
+ * @param   {String}   code       - Raw html code
+ * @param   {String}   lang       - Language indicated in the code block
+ * @param   {String}   langPrefix - Language prefix
+ * @param   {Function} highlight  - Code highlight function
+ * @returns {String}                Code block with souce and run code
  */
-function codeBlockTemplate(exampleRun, exampleSrc, langClass) {
+function renderCodeBlock(code, lang, langPrefix, highlight) {
+  let codeBlock = escapeHtml(code);
+
+  if (highlight) {
+    codeBlock = highlight(code, lang);
+  }
+
+  const langClass = !lang ? '' : `${langPrefix}${escape(lang, true)}`
+  const jsx = code;
+
   return `
-<div class="example">
-  <div class="run">${exampleRun}</div>
-  <div class="source">
-    <pre><code${!langClass ? '' : ` class="${langClass}"`}>
-      ${exampleSrc}
-    </code></pre>
-  </div>
-</div>`;
+    <div class="example">
+      <div class="run">${jsx}</div>
+    </div>`;
 }
 
 /**
@@ -35,16 +39,14 @@ function codeBlockTemplate(exampleRun, exampleSrc, langClass) {
  * @param   {Function} highlight  - Code highlight function
  * @returns {String}                Code block with souce and run code
  */
-function parseCodeBlock(code, lang, langPrefix, highlight) {
+function parseCodeBlockCode(code, lang, langPrefix, highlight) {
   let codeBlock = escapeHtml(code);
 
   if (highlight) {
     codeBlock = highlight(code, lang);
   }
 
-  const
-    langClass = !lang ? '' : `${langPrefix}${escape(lang, true)}`,
-    jsx = code;
+  const langClass = !lang ? '' : `${langPrefix}${escape(lang, true)}`;
 
   codeBlock = codeBlock
     .replace(/{/g, '{"{"{')
@@ -53,7 +55,14 @@ function parseCodeBlock(code, lang, langPrefix, highlight) {
     .replace(/(\n)/g, '{"\\n"}')
     .replace(/class=/g, 'className=');
 
-  return codeBlockTemplate(jsx, codeBlock, langClass);
+  return `
+    <div class="example">
+      <div class="source">
+        <pre><code${!langClass ? '' : ` class="${langClass}"`}>
+          ${exampleSrc}
+        </code></pre>
+      </div>
+    </div>`;
 }
 
 /**
@@ -92,7 +101,17 @@ function parseMarkdown(markdown) {
     md.renderer.rules.fence_custom.render = (tokens, idx, options) => {
       // gets tags applied to fence blocks ```react html
       const codeTags = tokens[idx].params.split(/\s+/g);
-      return parseCodeBlock(
+      return renderCodeBlock(
+        tokens[idx].content,
+        codeTags[codeTags.length - 1],
+        options.langPrefix,
+        options.highlight
+      );
+    };
+    md.renderer.rules.fence_custom.jsx = (tokens, idx, options) => {
+      // gets tags applied to fence blocks ```react html
+      const codeTags = tokens[idx].params.split(/\s+/g);
+      return parseCodeBlockCode(
         tokens[idx].content,
         codeTags[codeTags.length - 1],
         options.langPrefix,
@@ -132,9 +151,9 @@ function parse(markdown) {
 }
 
 module.exports = {
-  codeBlockTemplate,
+  renderCodeBlock,
   parse,
-  parseCodeBlock,
+  parseCodeBlockCode,
   parseFrontMatter,
   parseMarkdown
 };
